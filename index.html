@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Simple Screen Record!</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/comlinkjs@3.0.2/umd/comlink.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="sketchy.min.css">
+    <style type="text/css">
+        video {
+          width: 640px;
+          height: 380px;
+        }
+    </style>
+</head>
+
+<body>
+
+  <div class="container-fluid">
+    <div class="row mt-5">
+        <div class="col-md-12">
+            <div class="jumbotron">
+             <div class="row">
+                <div class="mx-auto">
+                     <h1 class="display-3 "> Simple Screen Recorder</h1>
+                </div>
+             </div>
+             <div class="row">
+               <div class="mx-auto">
+                  <video id="videoElement" autoplay muted></video>
+               </div>
+             </div>
+             <div class="row">
+               <div class="mx-auto">
+                  <button id="captureBtn" class="btn btn-success mr-4">Start Recording</button>
+                  <button id="stopBtn" class="btn btn-danger">Stop Recording</button>
+                  <a id="download" href="#" style="display: none;">Download</a>
+               </div>
+             </div>
+            </div>
+        </div>
+    </div>
+  </div>
+</body>
+<script type="text/javascript">
+    window.onload = () => {
+      const warningEl = document.getElementById('warning');
+      const videoElement = document.getElementById('videoElement');
+      const captureBtn = document.getElementById('captureBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const download = document.getElementById('download');
+
+
+      let blobs;
+      let blob;
+      let rec;
+      let stream;
+      let voiceStream;
+      let desktopStream;
+      
+      const mergeAudioStreams = (desktopStream, voiceStream) => {
+        const context = new AudioContext();
+        const destination = context.createMediaStreamDestination();
+        const hasDesktop = false;
+        const hasVoice = false;
+
+        const source1 = context.createMediaStreamSource(desktopStream);
+        const desktopGain = context.createGain();
+        desktopGain.gain.value = 0.7;
+        source1.connect(desktopGain).connect(destination);
+
+        const source2 = context.createMediaStreamSource(voiceStream);
+        const voiceGain = context.createGain();
+        voiceGain.gain.value = 0.7;
+        source2.connect(voiceGain).connect(destination);
+
+          
+        return destination.stream.getAudioTracks()
+      };
+
+      captureBtn.onclick = async () => {
+        download.style.display = 'none';
+        const audio = true; 
+        const mic = true;
+        
+        desktopStream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio: audio });
+        
+        if (mic === true) {
+          voiceStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 44100
+              } });
+        }
+      
+        const tracks = [
+          ...desktopStream.getVideoTracks(), 
+          ...mergeAudioStreams(desktopStream, voiceStream)
+        ];
+        
+
+        stream = new MediaStream(tracks);
+
+        videoElement.srcObject = stream;
+        videoElement.muted = true;
+          
+        blobs = [];
+
+        rec = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=vp8,opus'});
+        rec.ondataavailable = (e) => blobs.push(e.data);
+        rec.onstop = async () => {
+          
+
+          blob = new Blob(blobs, {type: 'video/webm'});
+          let url = window.URL.createObjectURL(blob);
+          console.log(url);
+          download.href = url;
+
+
+         var uuid =  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+
+          download.download = uuid+'.webm';
+          download.style.display = 'block';
+        };
+        captureBtn.disabled = true;
+        stopBtn.disabled = false;
+        rec.start();
+      };
+
+      stopBtn.onclick = () => {
+        captureBtn.disabled = false;
+        stopBtn.disabled = true;
+        
+        rec.stop();
+        stream.getTracks().forEach(s=>s.stop());
+        videoElement.srcObject = null
+        stream = null;
+      };
+    };
+
+</script>
+
+</html>
